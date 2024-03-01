@@ -193,7 +193,7 @@ void test_class() {
     XX_PM(g_person_map, "class.map before");
     CS_LOG_INFO(CS_LOG_ROOT()) << "before: " << g_person_vec_map->toString();
 
-    YAML::Node root = YAML::LoadFile("/home/CraftServer/workspace/CraftServer/bin/conf/test.yml");
+    YAML::Node root = YAML::LoadFile("CraftServer/conf/test.yml");
     CraftServer::Config::LoadFromYaml(root);
 
     CS_LOG_INFO(CS_LOG_ROOT()) << "after: " << g_person->getValue().toString() << " - " << g_person->toString();
@@ -205,7 +205,7 @@ void test_log() {
     static CraftServer::Logger::ptr system_log = CS_LOG_NAME("system");
     CS_LOG_INFO(system_log) << "hello system" << std::endl;
     std::cout << CraftServer::LoggerMgr::GetInstance()->toYamlString() << std::endl;
-    YAML::Node root = YAML::LoadFile("/home/CraftServer/workspace/CraftServer/bin/conf/log.yml");
+    YAML::Node root = YAML::LoadFile("CraftServer/conf/log.yml");
     CraftServer::Config::LoadFromYaml(root);
     std::cout << "=============" << std::endl;
     std::cout << CraftServer::LoggerMgr::GetInstance()->toYamlString() << std::endl;
