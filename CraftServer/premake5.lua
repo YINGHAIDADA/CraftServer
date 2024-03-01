@@ -1,4 +1,4 @@
-﻿project "CppServer"
+﻿project "CraftServer"
 	kind "StaticLib"
 	language "C++"
 	cppdialect "C++17"

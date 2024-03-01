@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
-namespace CppServer {
+namespace CraftServer {
 
 	pid_t GetThreadId();
 	uint32_t GetFiberId();

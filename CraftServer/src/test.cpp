@@ -15,7 +15,7 @@
  
 // int main()
 // {
-//     string filename = "CppServer/src/config.yaml";
+//     string filename = "CraftServer/src/config.yaml";
 //     YAML::Node config = YAML::LoadFile(filename);
 //     vector<string> illegal_rules = config["illegal_rules"].as<vector<string>>();
 //     cout << illegal_rules.size() << endl;

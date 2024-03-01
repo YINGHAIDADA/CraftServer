@@ -17,13 +17,13 @@ project "Test"
 
     includedirs
     {
-        "%{wks.location}/CppServer/src",
+        "%{wks.location}/CraftServer/src",
 		"%{IncludeDir.yaml_cpp}",
     }
 
     links        --链接库
     {
-        "CppServer",
+        "CraftServer",
 		"yaml-cpp",
     }
 

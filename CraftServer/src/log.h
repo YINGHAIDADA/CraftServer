@@ -14,33 +14,35 @@
 
 #define CS_LOG_LEVEL(logger, level) \
     if(logger->getLevel() <= level) \
-        CppServer::LogEventWrap(CppServer::LogEvent::ptr(new CppServer::LogEvent(logger, level, \
-                        __FILE__, __LINE__, 0, CppServer::GetThreadId(),\
-                CppServer::GetFiberId(), time(0)))).getSS()
+        CraftServer::LogEventWrap(CraftServer::LogEvent::ptr(new CraftServer::LogEvent(logger, level, \
+                        __FILE__, __LINE__, 0, CraftServer::GetThreadId(),\
+                CraftServer::GetFiberId(), time(0)))).getSS()
 
-#define CS_LOG_DEBUG(logger) CS_LOG_LEVEL(logger, CppServer::LogLevel::DEBUG)
-#define CS_LOG_INFO(logger) CS_LOG_LEVEL(logger, CppServer::LogLevel::INFO)
-#define CS_LOG_WARN(logger) CS_LOG_LEVEL(logger, CppServer::LogLevel::WARN)
-#define CS_LOG_ERROR(logger) CS_LOG_LEVEL(logger, CppServer::LogLevel::ERROR)
-#define CS_LOG_FATAL(logger) CS_LOG_LEVEL(logger, CppServer::LogLevel::FATAL)
+#define CS_LOG_DEBUG(logger) CS_LOG_LEVEL(logger, CraftServer::LogLevel::DEBUG)
+#define CS_LOG_INFO(logger) CS_LOG_LEVEL(logger, CraftServer::LogLevel::INFO)
+#define CS_LOG_WARN(logger) CS_LOG_LEVEL(logger, CraftServer::LogLevel::WARN)
+#define CS_LOG_ERROR(logger) CS_LOG_LEVEL(logger, CraftServer::LogLevel::ERROR)
+#define CS_LOG_FATAL(logger) CS_LOG_LEVEL(logger, CraftServer::LogLevel::FATAL)
 
 #define CS_LOG_FMT_LEVEL(logger, level, fmt, ...) \
     if(logger->getLevel() <= level) \
-        CppServer::LogEventWrap(CppServer::LogEvent::ptr(new CppServer::LogEvent(logger, level, \
-                        __FILE__, __LINE__, 0, CppServer::GetThreadId(),\
-                CppServer::GetFiberId(), time(0)))).getEvent()->format(fmt, __VA_ARGS__)
+        CraftServer::LogEventWrap(CraftServer::LogEvent::ptr(new CraftServer::LogEvent(logger, level, \
+                        __FILE__, __LINE__, 0, CraftServer::GetThreadId(),\
+                CraftServer::GetFiberId(), time(0)))).getEvent()->format(fmt, __VA_ARGS__)
 
-#define CS_LOG_FMT_DEBUG(logger, fmt, ...) CS_LOG_FMT_LEVEL(logger, CppServer::LogLevel::DEBUG, fmt, __VA_ARGS__)
-#define CS_LOG_FMT_INFO(logger, fmt, ...)  CS_LOG_FMT_LEVEL(logger, CppServer::LogLevel::INFO, fmt, __VA_ARGS__)
-#define CS_LOG_FMT_WARN(logger, fmt, ...)  CS_LOG_FMT_LEVEL(logger, CppServer::LogLevel::WARN, fmt, __VA_ARGS__)
-#define CS_LOG_FMT_ERROR(logger, fmt, ...) CS_LOG_FMT_LEVEL(logger, CppServer::LogLevel::ERROR, fmt, __VA_ARGS__)
-#define CS_LOG_FMT_FATAL(logger, fmt, ...) CS_LOG_FMT_LEVEL(logger, CppServer::LogLevel::FATAL, fmt, __VA_ARGS__)
+#define CS_LOG_FMT_DEBUG(logger, fmt, ...) CS_LOG_FMT_LEVEL(logger, CraftServer::LogLevel::DEBUG, fmt, __VA_ARGS__)
+#define CS_LOG_FMT_INFO(logger, fmt, ...)  CS_LOG_FMT_LEVEL(logger, CraftServer::LogLevel::INFO, fmt, __VA_ARGS__)
+#define CS_LOG_FMT_WARN(logger, fmt, ...)  CS_LOG_FMT_LEVEL(logger, CraftServer::LogLevel::WARN, fmt, __VA_ARGS__)
+#define CS_LOG_FMT_ERROR(logger, fmt, ...) CS_LOG_FMT_LEVEL(logger, CraftServer::LogLevel::ERROR, fmt, __VA_ARGS__)
+#define CS_LOG_FMT_FATAL(logger, fmt, ...) CS_LOG_FMT_LEVEL(logger, CraftServer::LogLevel::FATAL, fmt, __VA_ARGS__)
 
-#define CS_LOG_ROOT() CppServer::LoggerMgr::GetInstance()->getRoot()
+#define CS_LOG_ROOT() CraftServer::LoggerMgr::GetInstance()->getRoot()
+#define CS_LOG_NAME(name) CraftServer::LoggerMgr::GetInstance()->getLogger(name)
 
-namespace CppServer {
+namespace CraftServer {
 
 	class Logger;
+	class LoggerManager;
 
 	//日志级别
 	class LogLevel {
@@ -55,6 +57,7 @@ namespace CppServer {
 		};
 
 		static const char* ToString(LogLevel::Level level);
+		static LogLevel::Level FromString(const std::string& str);
 	};
 
 	//日志事件
@@ -118,9 +121,13 @@ namespace CppServer {
 		};
 
 		void init();
+
+		bool isError() const { return m_error;}
+		const std::string getPattern() const { return m_pattern;}
 	private:
 		std::string m_pattern;
 		std::vector<FormatItem::ptr> m_items;
+		bool m_error = false;
 
 	};
 
@@ -131,6 +138,7 @@ namespace CppServer {
 		virtual ~LogAppender() {}
 
 		virtual void log(std::shared_ptr<Logger> logger, LogLevel::Level level, LogEvent::ptr event) = 0;
+		virtual std::string toYamlString() = 0;
 
 		void setFormatter(LogFormatter::ptr val) { m_formatter = val; }
 		LogFormatter::ptr getFormatter() const { return m_formatter; }
@@ -144,6 +152,7 @@ namespace CppServer {
 
 	//日志器
 	class Logger : public std::enable_shared_from_this<Logger> {
+	friend class LoggerManager;
 	public:
 		typedef std::shared_ptr<Logger> ptr;
 
@@ -158,15 +167,25 @@ namespace CppServer {
 
 		void addAppender(LogAppender::ptr appender);
 		void delAppender(LogAppender::ptr appender);
+
+		void clearAppenders();
+
 		LogLevel::Level getLevel() const { return m_level; }
 		void setLevel(LogLevel::Level val) { m_level = val; }
 
 		const std::string& getName() const { return m_name; }
+
+		void setFormatter(LogFormatter::ptr val);
+		void setFormatter(const std::string& val);
+		LogFormatter::ptr getFormatter();
+
+		std::string toYamlString();
 	private:
 		std::string m_name;                     //日志名称
 		LogLevel::Level m_level;                //日志级别
 		std::list<LogAppender::ptr> m_appenders;//Appender集合
 		LogFormatter::ptr m_formatter;
+		Logger::ptr m_root;
 	};
 
 	//输出到控制台的Appender
@@ -174,6 +193,7 @@ namespace CppServer {
 	public:
 		typedef std::shared_ptr<StdoutLogAppender> ptr;
 		void log(Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event) override;
+		std::string toYamlString() override;
 	};
 
 	//定义输出到文件的Appender
@@ -182,6 +202,7 @@ namespace CppServer {
 		typedef std::shared_ptr<FileLogAppender> ptr;
 		FileLogAppender(const std::string& filename);
 		void log(Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event) override;
+		std::string toYamlString() override;
 
 		//重新打开文件，文件打开成功返回true
 		bool reopen();
@@ -197,11 +218,13 @@ namespace CppServer {
 
 		void init();
 		Logger::ptr getRoot() const { return m_root; }
+
+		std::string toYamlString();
 	private:
 		std::map<std::string, Logger::ptr> m_loggers;
 		Logger::ptr m_root;
 	};
 
-	typedef CppServer::Singleton<LoggerManager> LoggerMgr;
+	typedef CraftServer::Singleton<LoggerManager> LoggerMgr;
 
 }

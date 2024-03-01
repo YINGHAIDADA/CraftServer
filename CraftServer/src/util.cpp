@@ -1,7 +1,7 @@
 ﻿#include "cspch.h"
 #include "util.h"
 
-namespace CppServer {
+namespace CraftServer {
 	pid_t GetThreadId() {
 		return syscall(SYS_gettid);
 	}

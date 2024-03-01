@@ -1,4 +1,4 @@
-﻿workspace "CppServer"
+﻿workspace "CraftServer"
 	architecture "x86_64"
 	startproject "Test"
 	
@@ -20,6 +20,6 @@ IncludeDir = {}
 IncludeDir["yaml_cpp"] = "/usr/local/include/yaml-cpp"
 IncludeDir["boost"] = "/usr/include/boost"
 
-include "CppServer"
+include "CraftServer"
 include "Test"
 

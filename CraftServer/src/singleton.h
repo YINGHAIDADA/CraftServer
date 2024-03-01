@@ -1,6 +1,6 @@
 #pragma once
 
-namespace CppServer {
+namespace CraftServer {
 
 template<class T, class X = void, int N = 0>
 class Singleton {

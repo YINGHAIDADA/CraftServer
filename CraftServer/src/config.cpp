@@ -1,7 +1,7 @@
 ﻿#include "cspch.h"
 #include "config.h"
 
-namespace CppServer {
+namespace CraftServer {
 
 	// Config::ConfigVarMap Config::s_datas;
 	// std::map<std::string, int> Config::s_test;
