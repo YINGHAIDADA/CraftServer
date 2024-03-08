@@ -133,6 +133,7 @@ namespace CraftServer {
 
 	//日志输出地
 	class LogAppender {
+	friend class Logger;
 	public:
 		typedef std::shared_ptr<LogAppender> ptr;
 		virtual ~LogAppender() {}
@@ -140,18 +141,27 @@ namespace CraftServer {
 		virtual void log(std::shared_ptr<Logger> logger, LogLevel::Level level, LogEvent::ptr event) = 0;
 		virtual std::string toYamlString() = 0;
 
-		void setFormatter(LogFormatter::ptr val) { m_formatter = val; }
+		void setFormatter(LogFormatter::ptr val);
 		LogFormatter::ptr getFormatter() const { return m_formatter; }
 
 		LogLevel::Level getLevel() const { return m_level; }
 		void setLevel(LogLevel::Level val) { m_level = val; }
 	protected:
 		LogLevel::Level m_level = LogLevel::DEBUG;
+		bool m_hasFormatter = false;
 		LogFormatter::ptr m_formatter;
 	};
 
 	//日志器
 	class Logger : public std::enable_shared_from_this<Logger> {
+	/*std::enable_shared_from_this 是一个模板类，它定义在 <memory> 头文件中。这个类的作用是允许一个对象（通常是在堆上分配的）在其生命周期中安全地获取指向自身的 std::shared_ptr。通常情况下，当我们想要在对象的成员函数中返回指向自身的 std::shared_ptr 时，我们会遇到一个问题，即无法直接在成员函数中使用 this 指针创建 std::shared_ptr，因为 this 指针不会增加对象的引用计数，可能会导致悬空指针或者内存泄漏。
+	通过继承 std::enable_shared_from_this，Logger 类可以通过调用 shared_from_this() 函数来获得指向自身的 std::shared_ptr。这个函数会返回一个 std::shared_ptr 对象，该对象与当前对象共享所有权，从而确保对象在共享指针的引用计数归零之前不会被销毁。
+
+	在使用 std::enable_shared_from_this 时，有两个重要的约束 ：
+	1.对象必须通过 std::shared_ptr 进行动态分配，不能直接栈上分配。
+	2.使用 shared_from_this() 函数的前提是，已经存在至少一个指向对象的 std::shared_ptr，否则会抛出 std::bad_weak_ptr 异常。
+
+	在 Logger 类中，可能会利用这个特性，例如在某些异步回调函数中需要共享 Logger 对象的情况下，可以安全地获取指向自身的 std::shared_ptr。*/
 	friend class LoggerManager;
 	public:
 		typedef std::shared_ptr<Logger> ptr;

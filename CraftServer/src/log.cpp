@@ -49,14 +49,18 @@ namespace CraftServer {
 		#undef XX
 	}
 
-	LogEventWrap::LogEventWrap(LogEvent::ptr e)
-		:m_event(e) {
+	LogEvent::LogEvent(std::shared_ptr<Logger> logger, LogLevel::Level level
+		, const char* file, int32_t line, uint32_t elapse
+		, uint32_t thread_id, uint32_t fiber_id, uint64_t time)
+		:m_file(file)
+		, m_line(line)
+		, m_elapse(elapse)
+		, m_threadId(thread_id)
+		, m_fiberId(fiber_id)
+		, m_time(time)
+		, m_logger(logger)
+		, m_level(level) {
 	}
-
-	LogEventWrap::~LogEventWrap() {
-		m_event->getLogger()->log(m_event->getLevel(), m_event);
-	}
-
 	void LogEvent::format(const char* fmt, ...) {
 		va_list al;
 		va_start(al, fmt);
@@ -73,10 +77,30 @@ namespace CraftServer {
 		}
 	}
 
+	LogEventWrap::LogEventWrap(LogEvent::ptr e)
+		:m_event(e) {
+	}
+	LogEventWrap::~LogEventWrap() {
+		m_event->getLogger()->log(m_event->getLevel(), m_event);
+	}
 	std::stringstream& LogEventWrap::getSS() {
 		return m_event->getSS();
 	}
 
+	LogFormatter::LogFormatter(const std::string& pattern)
+		:m_pattern(pattern) {
+		init();
+	}
+	std::string LogFormatter::format(std::shared_ptr<Logger> logger, LogLevel::Level level, LogEvent::ptr event) {
+		std::stringstream ss;
+		for (auto& i : m_items) {
+			i->format(ss, logger, level, event);
+		}
+		return ss.str();
+	}
+
+
+//----------------------------FormatItem----------------------------------------
 	class MessageFormatItem : public LogFormatter::FormatItem {
 	public:
 		MessageFormatItem(const std::string& str = "") {}
@@ -191,187 +215,9 @@ namespace CraftServer {
 	private:
 		std::string m_string;
 	};
+//----------------------------FormatItem----------------------------------------
 
-
-	LogEvent::LogEvent(std::shared_ptr<Logger> logger, LogLevel::Level level
-		, const char* file, int32_t line, uint32_t elapse
-		, uint32_t thread_id, uint32_t fiber_id, uint64_t time)
-		:m_file(file)
-		, m_line(line)
-		, m_elapse(elapse)
-		, m_threadId(thread_id)
-		, m_fiberId(fiber_id)
-		, m_time(time)
-		, m_logger(logger)
-		, m_level(level) {
-	}
-
-	Logger::Logger(const std::string& name)
-		:m_name(name)
-		, m_level(LogLevel::DEBUG) {
-		m_formatter.reset(new LogFormatter("%d{%Y-%m-%d %H:%M:%S}%T%t%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"));
-	}
-
-	void Logger::setFormatter(LogFormatter::ptr val) {
-		m_formatter = val;
-	}
-
-	void Logger::setFormatter(const std::string& val) {
-		CraftServer::LogFormatter::ptr new_val(new CraftServer::LogFormatter(val));
-		if(new_val->isError()) {
-			std::cout << "Logger setFormatter name=" << m_name
-					<< " value=" << val << " invalid formatter"
-					<< std::endl;
-			return;
-		}
-		m_formatter = new_val;
-	}
-
-	std::string Logger::toYamlString() {
-		YAML::Node node;
-		node["name"] = m_name;
-		if(m_level != LogLevel::UNKNOW) {
-			node["level"] = LogLevel::ToString(m_level);
-		}
-		if(m_formatter) {
-			node["formatter"] = m_formatter->getPattern();
-		}
-
-		for(auto& i : m_appenders) {
-			node["appenders"].push_back(YAML::Load(i->toYamlString()));
-		}
-		std::stringstream ss;
-		ss << node;
-		return ss.str();
-	}
-
-
-	LogFormatter::ptr Logger::getFormatter() {
-		return m_formatter;
-	}
-
-	void Logger::addAppender(LogAppender::ptr appender) {
-		if (!appender->getFormatter()) {
-			appender->setFormatter(m_formatter);
-		}
-		m_appenders.push_back(appender);
-	}
-
-	void Logger::delAppender(LogAppender::ptr appender) {
-		for (auto it = m_appenders.begin();
-			it != m_appenders.end(); ++it) {
-			if (*it == appender) {
-				m_appenders.erase(it);
-				break;
-			}
-		}
-	}
-
-	void Logger::clearAppenders() {
-		m_appenders.clear();
-	}
-
-	void Logger::log(LogLevel::Level level, LogEvent::ptr event) {
-		if (level >= m_level) {
-			auto self = shared_from_this();
-			if(!m_appenders.empty()) {
-				for(auto& i : m_appenders) {
-					i->log(self, level, event);
-				}
-			} else if(m_root) {
-				m_root->log(level, event);
-			}
-		}
-	}
-
-	void Logger::debug(LogEvent::ptr event) {
-		log(LogLevel::DEBUG, event);
-	}
-
-	void Logger::info(LogEvent::ptr event) {
-		log(LogLevel::INFO, event);
-	}
-
-	void Logger::warn(LogEvent::ptr event) {
-		log(LogLevel::WARN, event);
-	}
-
-	void Logger::error(LogEvent::ptr event) {
-		log(LogLevel::ERROR, event);
-	}
-
-	void Logger::fatal(LogEvent::ptr event) {
-		log(LogLevel::FATAL, event);
-	}
-
-	FileLogAppender::FileLogAppender(const std::string& filename)
-		:m_filename(filename) {
-		reopen();
-	}
-
-	void FileLogAppender::log(std::shared_ptr<Logger> logger, LogLevel::Level level, LogEvent::ptr event) {
-		if (level >= m_level) {
-			m_filestream << m_formatter->format(logger, level, event);
-		}
-	}
-
-	std::string FileLogAppender::toYamlString() {
-		YAML::Node node;
-		node["type"] = "FileLogAppender";
-		node["file"] = m_filename;
-		if(m_level != LogLevel::UNKNOW) {
-			node["level"] = LogLevel::ToString(m_level);
-		}
-		if(m_formatter) {
-			node["formatter"] = m_formatter->getPattern();
-		}
-		std::stringstream ss;
-		ss << node;
-		return ss.str();
-	}
-
-	bool FileLogAppender::reopen() {
-		if (m_filestream) {
-			m_filestream.close();
-		}
-		m_filestream.open(m_filename, std::ios::app);
-		return !!m_filestream;
-	}
-
-	void StdoutLogAppender::log(std::shared_ptr<Logger> logger, LogLevel::Level level, LogEvent::ptr event) {
-		if (level >= m_level) {
-			std::cout << m_formatter->format(logger, level, event);
-		}
-	}
-
-	std::string StdoutLogAppender::toYamlString() {
-		YAML::Node node;
-		node["type"] = "StdoutLogAppender";
-		if(m_level != LogLevel::UNKNOW) {
-			node["level"] = LogLevel::ToString(m_level);
-		}
-		if(m_formatter) {
-			node["formatter"] = m_formatter->getPattern();
-		}
-		std::stringstream ss;
-		ss << node;
-		return ss.str();
-	}
-
-	LogFormatter::LogFormatter(const std::string& pattern)
-		:m_pattern(pattern) {
-		init();
-	}
-
-	std::string LogFormatter::format(std::shared_ptr<Logger> logger, LogLevel::Level level, LogEvent::ptr event) {
-		std::stringstream ss;
-		for (auto& i : m_items) {
-			i->format(ss, logger, level, event);
-		}
-		return ss.str();
-	}
-
-	//%xxx %xxx{xxx} %%
+		//%xxx %xxx{xxx} %%
 	void LogFormatter::init() {
 		//str, format, type
 		std::vector<std::tuple<std::string, std::string, int> > vec;
@@ -485,6 +331,179 @@ namespace CraftServer {
 	}
 
 
+	void LogAppender::setFormatter(LogFormatter::ptr val) {
+		m_formatter = val;
+		if(m_formatter) {
+			m_hasFormatter = true;
+		} else {
+			m_hasFormatter = false;
+		}
+	}
+
+
+//----------------------------Logger----------------------------------------
+	Logger::Logger(const std::string& name)
+		:m_name(name)
+		, m_level(LogLevel::DEBUG) {
+		m_formatter.reset(new LogFormatter("%d{%Y-%m-%d %H:%M:%S}%T%t%T%F%T[%p]%T[%c]%T%f:%l%T%m%n"));
+	}
+
+	void Logger::log(LogLevel::Level level, LogEvent::ptr event) {
+		if (level >= m_level) {
+			auto self = shared_from_this();
+			if(!m_appenders.empty()) {
+				for(auto& i : m_appenders) {
+					i->log(self, level, event);
+				}
+			} else if(m_root) {
+				m_root->log(level, event);
+			}
+		}
+	}
+
+	void Logger::debug(LogEvent::ptr event) {
+		log(LogLevel::DEBUG, event);
+	}
+
+	void Logger::info(LogEvent::ptr event) {
+		log(LogLevel::INFO, event);
+	}
+
+	void Logger::warn(LogEvent::ptr event) {
+		log(LogLevel::WARN, event);
+	}
+
+	void Logger::error(LogEvent::ptr event) {
+		log(LogLevel::ERROR, event);
+	}
+
+	void Logger::fatal(LogEvent::ptr event) {
+		log(LogLevel::FATAL, event);
+	}
+
+	void Logger::addAppender(LogAppender::ptr appender) {
+		if (!appender->getFormatter()) {
+			appender->m_formatter = m_formatter;
+		}
+		m_appenders.push_back(appender);
+	}
+
+	void Logger::delAppender(LogAppender::ptr appender) {
+		for (auto it = m_appenders.begin();
+			it != m_appenders.end(); ++it) {
+			if (*it == appender) {
+				m_appenders.erase(it);
+				break;
+			}
+		}
+	}
+
+	void Logger::clearAppenders() {
+		m_appenders.clear();
+	}
+
+	void Logger::setFormatter(LogFormatter::ptr val) {
+		m_formatter = val;
+		for(auto& i : m_appenders) {
+			if(!i->m_hasFormatter) {
+				i->m_formatter = m_formatter;
+			}
+		}
+	}
+
+	void Logger::setFormatter(const std::string& val) {
+		CraftServer::LogFormatter::ptr new_val(new CraftServer::LogFormatter(val));
+		if(new_val->isError()) {
+			std::cout << "Logger setFormatter name=" << m_name
+					<< " value=" << val << " invalid formatter"
+					<< std::endl;
+			return;
+		}
+		//m_formatter = new_val;
+		setFormatter(new_val);
+	}
+
+	LogFormatter::ptr Logger::getFormatter() {
+		return m_formatter;
+	}
+
+	std::string Logger::toYamlString() {
+		YAML::Node node;
+		node["name"] = m_name;
+		if(m_level != LogLevel::UNKNOW) {
+			node["level"] = LogLevel::ToString(m_level);
+		}
+		if(m_formatter) {
+			node["formatter"] = m_formatter->getPattern();
+		}
+
+		for(auto& i : m_appenders) {
+			node["appenders"].push_back(YAML::Load(i->toYamlString()));
+		}
+		std::stringstream ss;
+		ss << node;
+		return ss.str();
+	}
+//----------------------------Logger----------------------------------------
+
+
+	FileLogAppender::FileLogAppender(const std::string& filename)
+		:m_filename(filename) {
+		reopen();
+	}
+
+	void FileLogAppender::log(std::shared_ptr<Logger> logger, LogLevel::Level level, LogEvent::ptr event) {
+		if (level >= m_level) {
+			m_filestream << m_formatter->format(logger, level, event);
+		}
+	}
+
+	std::string FileLogAppender::toYamlString() {
+		YAML::Node node;
+		node["type"] = "FileLogAppender";
+		node["file"] = m_filename;
+		if(m_level != LogLevel::UNKNOW) {
+			node["level"] = LogLevel::ToString(m_level);
+		}
+		if(m_hasFormatter && m_formatter) {
+			node["formatter"] = m_formatter->getPattern();
+		}
+		std::stringstream ss;
+		ss << node;
+		return ss.str();
+	}
+
+	bool FileLogAppender::reopen() {
+		if (m_filestream) {
+			m_filestream.close();
+		}
+		m_filestream.open(m_filename, std::ios::app);
+		return !!m_filestream;
+	}
+
+	void StdoutLogAppender::log(std::shared_ptr<Logger> logger, LogLevel::Level level, LogEvent::ptr event) {
+		if (level >= m_level) {
+			std::cout << m_formatter->format(logger, level, event);
+		}
+	}
+
+	std::string StdoutLogAppender::toYamlString() {
+		YAML::Node node;
+		node["type"] = "StdoutLogAppender";
+		if(m_level != LogLevel::UNKNOW) {
+			node["level"] = LogLevel::ToString(m_level);
+		}
+		if(m_hasFormatter && m_formatter) {
+			node["formatter"] = m_formatter->getPattern();
+		}
+		std::stringstream ss;
+		ss << node;
+		return ss.str();
+	}
+
+
+
+
 	LoggerManager::LoggerManager() {
 		m_root.reset(new Logger);
 		m_root->addAppender(LogAppender::ptr(new StdoutLogAppender));
@@ -561,7 +580,7 @@ namespace CraftServer {
 				}
 
 				if(n["appenders"].IsDefined()) {
-					std::cout << "==" << ld.name << " = " << n["appenders"].size() << std::endl;
+					//std::cout << "==" << ld.name << " = " << n["appenders"].size() << std::endl;
 					for(size_t x = 0; x < n["appenders"].size(); ++x) {
 						auto a = n["appenders"][x];
 						if(!a["type"].IsDefined()) {
@@ -593,8 +612,7 @@ namespace CraftServer {
 						ld.appenders.push_back(lad);
 					}
 				}
-				std::cout << "---" << ld.name << " - "
-						<< ld.appenders.size() << std::endl;
+				//std::cout << "---" << ld.name << " - " << ld.appenders.size() << std::endl;
 				vec.insert(ld);
 			}
 			return vec;
@@ -676,6 +694,15 @@ namespace CraftServer {
 							ap.reset(new StdoutLogAppender);
 						}
 						ap->setLevel(a.level);
+						if(!a.formatter.empty()) {
+							LogFormatter::ptr fmt(new LogFormatter(a.formatter));
+							if(!fmt->isError()) {
+								ap->setFormatter(fmt);
+							} else {
+								std::cout << "log.name=" << i.name << " appender type=" << a.type
+										<< " formatter=" << a.formatter << " is invalid" << std::endl;
+							}
+						}
 						logger->addAppender(ap);
 					}
 				}
@@ -685,7 +712,7 @@ namespace CraftServer {
 					if(it == new_value.end()) {
 						//删除logger
 						auto logger = CS_LOG_NAME(i.name);
-						logger->setLevel((LogLevel::Level)100);
+						logger->setLevel((LogLevel::Level)0);
 						logger->clearAppenders();
 					}
 				}

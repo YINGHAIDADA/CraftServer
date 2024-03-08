@@ -212,13 +212,16 @@ void test_log() {
     std::cout << "=============" << std::endl;
     std::cout << root << std::endl;
     CS_LOG_INFO(system_log) << "hello system" << std::endl;
+
+    system_log->setFormatter("%d - %m%n");
+    CS_LOG_INFO(system_log) << "hello system" << std::endl;
 }
 
 int main(int argc, char** argv) {
     // std::cout << xxx << std::endl;
-    test_yaml();
-    test_config();
-    test_class();
+    // test_yaml();
+    // test_config();
+    // test_class();
     test_log();
     return 0;
 }
